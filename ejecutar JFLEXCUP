@@ -1,0 +1,7 @@
+--COMPILAR Y EJECUTAR --
+//Tener java-cup-11b-runtime.jar en la carpeta del programa
+
+jflex Calculadora.flex
+cup Calculadora.cup
+javac -cp java-cup-11b-runtime.jar:. *.java
+java -cp java-cup-11b-runtime.jar:. Calculadora prueba.txt
