@@ -1,0 +1,64 @@
+import java_cup.runtime.*;
+
+nonterminal String Lista_de_Sent, Sentencia, Expresion, prIF, prELSE, prWHILE;
+nonterminal DosEtiquetas Condicion, prFOR, prDO;
+terminal String WHILE, DO, MAS, MENOS, POR, DIV, AP, CP, ALL, CLL, ENTERO, IDENT, IF, ELSE, FOR, PRINT, PYC, MINUS, IGUAL, NOT, AND, OR, GT, GE, LT, LE, NE, EQ;
+
+
+precedence left ELSE;
+precedence left OR;
+precedence left AND;
+precedence left NOT;
+precedence left LT, GT, LE, GE, EQ, NE; // Corregir en flex
+precedence left MAS, MENOS;
+precedence left POR, DIV;
+precedence left AP, CP;
+precedence left MINUS; //Menos unario signo negativo del numero
+
+start with Lista_de_Sent;
+
+Lista_de_Sent ::= Sentencia
+    | Lista_de_Sent Sentencia;
+                                                        // el iff, whilee, es la L de "escape", en el else aunque este vacio siempre se pone una etiqueta
+
+Sentencia ::= Expresion:e PYC                           {:RESULT = e;:}
+    | prIF:iff AP Condicion:c                           {:Generator.salida(Generator.LABEL, null, null, c.v());:} CP Sentencia {:Generator.salida(Generator.GOTO, null, null, iff); Generator.salida(Generator.LABEL, null, null, c.f());:} prELSE {:Generator.salida(Generator.LABEL, null, null, iff);:}
+    | prWHILE:whilee                                    {:Generator.salida(Generator.LABEL, null, null, whilee);:} AP Condicion:c {:Generator.salida(Generator.LABEL, null, null, c.v());:} CP Sentencia {:Generator.salida(Generator.GOTO, null, null, whilee); Generator.salida(Generator.LABEL, null, null, c.f());:}
+    | prDO:doo                                          {:Generator.salida(Generator.LABEL, null, null, doo.v()); :} Sentencia WHILE AP Condicion:c CP {:Generator.salida(Generator.LABEL, null, null, c.v()); Generator.salida(Generator.GOTO, null, null, doo.v()); Generator.salida(Generator.LABEL, null, null, c.f());:} PYC
+    | prFOR:forr  AP Expresion                          {:Generator.salida(Generator.LABEL, null, null, forr.v());:} PYC Condicion:c {:Generator.salida(Generator.LABEL, null, null, forr.f());:} PYC Expresion {:Generator.salida(Generator.GOTO, null, null, forr.v()); Generator.salida(Generator.LABEL, null, null, c.v());:} CP Sentencia {:Generator.salida(Generator.GOTO, null, null, forr.f()); Generator.salida(Generator.LABEL, null, null, c.f());:}
+    | PRINT AP Expresion:e CP PYC                       {:Generator.salida(sym.PRINT, null, null, e);:}
+    | ALL Lista_de_Sent CLL;
+
+prIF ::= IF {:RESULT = Generator.nuevaLabel();:}; //Generamos siempre una L nueva cada vez que hay un if, esta sera la L de "escape" la de continuar el programa
+
+prELSE ::= ELSE Sentencia {::}
+    | {::};
+
+prDO ::= DO {:RESULT = new DosEtiquetas();:};       //Label es lo mismo que etiqueta
+
+prFOR ::= FOR {:RESULT = new DosEtiquetas();:};
+
+prWHILE ::= WHILE {:RESULT = Generator.nuevaLabel();:};
+
+Expresion ::= Expresion:e1 MAS Expresion:e2             {:String temp = Generator.nuevaTemp(); Generator.salida(sym.MAS, e1, e2, temp); RESULT = temp;:}
+    | Expresion:e1 MENOS Expresion:e2                   {:String temp = Generator.nuevaTemp(); Generator.salida(sym.MENOS, e1, e2, temp); RESULT = temp;:}
+    | Expresion:e1 POR Expresion:e2                     {:String temp = Generator.nuevaTemp(); Generator.salida(sym.POR, e1, e2, temp); RESULT = temp;:}
+    | Expresion:e1 DIV Expresion:e2                     {:String temp = Generator.nuevaTemp(); Generator.salida(sym.DIV, e1, e2, temp); RESULT = temp;:}
+    | AP Expresion:e CP                                 {:RESULT = e;:}
+    | IDENT:i IGUAL Expresion:e                         {:RESULT = i; Generator.salida(sym.IDENT, e, null, i);:}
+    | IDENT:i                                           {:RESULT = i;:}
+    | ENTERO:e                                          {:RESULT = e;:}
+    | MENOS Expresion:e                                 {:String temp = Generator.nuevaTemp(); Generator.salida(sym.MINUS, e, null, temp); RESULT = temp;:}
+    %prec MINUS; 
+
+//Cuando entra en una condicion siempre se crean dos etiquetas nuevas, y además se dibuja el if.
+Condicion ::= Expresion:e1 EQ Expresion:e2              {:RESULT = new DosEtiquetas(); Generator.salida(Generator.IFGOTO, e1+" == ", e2, RESULT.v()); Generator.salida(Generator.GOTO, null, null, RESULT.f()); :}
+    | Expresion:e1 NE Expresion:e2                      {:RESULT = new DosEtiquetas(); Generator.salida(Generator.IFGOTO, e1+" == ", e2, RESULT.f()); Generator.salida(Generator.GOTO, null, null, RESULT.v()); :}
+    | Expresion:e1 LT Expresion:e2                      {:RESULT = new DosEtiquetas(); Generator.salida(Generator.IFGOTO, e1+" < ", e2, RESULT.v()); Generator.salida(Generator.GOTO, null, null, RESULT.f()); :}
+    | Expresion:e1 LE Expresion:e2                      {:RESULT = new DosEtiquetas(); Generator.salida(Generator.IFGOTO, e2+" < ", e1, RESULT.f()); Generator.salida(Generator.GOTO, null, null, RESULT.v()); :}
+    | Expresion:e1 GT Expresion:e2                      {:RESULT = new DosEtiquetas(); Generator.salida(Generator.IFGOTO, e2+" < ", e1, RESULT.v()); Generator.salida(Generator.GOTO, null, null, RESULT.f()); :}
+    | Expresion:e1 GE Expresion:e2                      {:RESULT = new DosEtiquetas(); Generator.salida(Generator.IFGOTO, e1+" < ", e2, RESULT.f()); Generator.salida(Generator.GOTO, null, null, RESULT.v()); :}
+    | NOT Condicion:c                                   {:c.swap(); RESULT = c;:}
+    | Condicion:c1 AND                                  {:Generator.salida(Generator.LABEL, null, null, c1.v()); :} Condicion:c2 {:Generator.salida(Generator.LABEL, null, null, c1.f()); Generator.salida(Generator.GOTO, null, null, c2.f()); RESULT = c2;:}
+    | Condicion:c1 OR                                   {:Generator.salida(Generator.LABEL, null, null, c1.f()); :} Condicion:c2 {:Generator.salida(Generator.LABEL, null, null, c1.v()); Generator.salida(Generator.GOTO, null, null, c2.v()); RESULT = c2;:}
+    | AP Condicion:c CP                                 {:RESULT = c;:};
