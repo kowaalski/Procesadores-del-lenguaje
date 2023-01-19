@@ -1,0 +1,157 @@
+import java_cup.runtime.*;
+
+
+
+
+parser code
+{:
+    
+    public String primEtiq;
+    public DosEtiquetas dosEtiq;
+    public String salidaEtiq;
+    public String aux;
+    public String masMenos;
+
+:};
+
+nonterminal String Lista_de_Sent, Sentencia, Expresion, prIF, prELSE, prWHILE, Var, Operador,Incr, prFORTO, prDOWNTO, prStep;
+nonterminal DosEtiquetas Condicion, prFOR, prDO;
+terminal String WHILE, DO, MAS, MENOS, POR, DIV, AP, CP, ALL, CLL, ENTERO, IDENT, IF, ELSE, FOR, PRINT, PYC, MINUS, IGUAL, NOT, AND, OR, GT, GE, LT, LE, NE, EQ, INT, COMA, MASMAS, MENOSMENOS, MOD, TO, DOWNTO, STEP;
+
+precedence left WHILE, DO, ENTERO, ALL, IDENT, IF, FOR, PRINT, INT;
+precedence left COMA;
+precedence left ELSE;
+precedence left OR;
+precedence left AND;
+precedence left NOT;
+precedence left LT, GT, LE, GE, EQ, NE;
+precedence left MAS, MENOS;
+precedence left POR, DIV, MOD;
+precedence left MASMAS, MENOSMENOS;
+precedence left AP, CP;
+precedence left MINUS;
+
+start with Lista_de_Sent;
+
+Lista_de_Sent ::= Sentencia
+    | Lista_de_Sent Sentencia
+    |
+    ;
+
+Sentencia ::= Expresion:e PYC                           {:RESULT = e;:}
+    | prIF:iff AP Condicion:c                           {:Generator.salida(Generator.LABEL, null, null, c.v());:} CP Sentencia {:Generator.salida(Generator.GOTO, null, null, iff); Generator.salida(Generator.LABEL, null, null, c.f());:} prELSE {:Generator.salida(Generator.LABEL, null, null, iff);:}
+    | prWHILE:whilee                                    {:Generator.salida(Generator.LABEL, null, null, whilee);:} AP Condicion:c {:Generator.salida(Generator.LABEL, null, null, c.v());:} CP Sentencia {:Generator.salida(Generator.GOTO, null, null, whilee); Generator.salida(Generator.LABEL, null, null, c.f());:}
+    | prDO:doo                                          {:Generator.salida(Generator.LABEL, null, null, doo.v()); :} Sentencia WHILE AP Condicion:c CP {:Generator.salida(Generator.LABEL, null, null, c.v()); Generator.salida(Generator.GOTO, null, null, doo.v()); Generator.salida(Generator.LABEL, null, null, c.f());:} PYC
+    | prFOR:forr AP Expresion                           {:Generator.salida(Generator.LABEL, null, null, forr.v());:} PYC Condicion:c {:Generator.salida(Generator.LABEL, null, null, forr.f());:} PYC Expresion {:Generator.salida(Generator.GOTO, null, null, forr.v()); Generator.salida(Generator.LABEL, null, null, c.v());:} CP Sentencia {:Generator.salida(Generator.GOTO, null, null, forr.f()); Generator.salida(Generator.LABEL, null, null, c.f());:}                                          
+    | FOR prFORTO 
+    | FOR prDOWNTO
+    | PRINT AP Expresion:e CP PYC                       {:Generator.salida(sym.PRINT, null, null, e);:}
+    | ALL                                               {:TablaSimbolos.anadirNivel();:} Lista_de_Sent CLL {:TablaSimbolos.quitarNivel();:}
+    ;
+//Lo de añadir nivel y quitar nivel, es para el ambito de la variable, cuando entramos en {...} creamos un nivel, añadimos a nuestra lista de hashmaps un nuevo hashmap,
+//donde vamos guardando todas las varibales de ese ambito {...} una vez que salimos de ese bloque, quitamos el nivel, es decir borramos ese ultimo hashmap creado,
+//así ya tenemos eliminadas todas las variables de ese bloque y es como si no existieran, produciendo un error si el programa llamara a alguna variable del ambito ya que ya no existen
+
+
+Expresion ::= Operador:o                                {:RESULT = o;:}
+    | Incr:var                                          {:RESULT = var;:}
+    | AP Expresion:e CP                                 {:RESULT = e;:}
+    | IDENT:i                                           {:RESULT = i + TablaSimbolos.get(i);:}
+    | IDENT:i IGUAL Expresion:e                         {:RESULT = i + TablaSimbolos.get(i); Generator.salida(sym.IDENT, e, null, RESULT);:}
+    | INT Var:v                                         {:RESULT = v;:}
+    | ENTERO:e                                          {:RESULT = e;:}
+    | MENOS Expresion:e                                 {:RESULT = Generator.nuevaTemp(); Generator.salida(sym.MINUS, e, null, RESULT);:}
+    %prec MINUS
+    ;
+
+Incr::= MASMAS Expresion:i {: Generator.salida(sym.MASMAS, null, null, i); RESULT = i; :} 
+        |Expresion:i MASMAS{: String t=Generator.nuevaTemp(); Generator.salida(sym.IDENT,i,null,t);Generator.salida(sym.MASMAS, null, null, i); RESULT = t; :} 
+        |MENOSMENOS Expresion:i {: Generator.salida(sym.MENOSMENOS, null, null, i); RESULT = i; :} 
+        |Expresion:i MENOSMENOS{:String t=Generator.nuevaTemp(); Generator.salida(sym.IDENT,i,null,t);Generator.salida(sym.MENOSMENOS, null, null, i); RESULT = t; :};
+
+
+
+
+Var ::= IDENT:i IGUAL Expresion:e                       {:TablaSimbolos.put(i, null); Generator.salida(sym.IDENT, e, null, i+TablaSimbolos.get(i) ); RESULT = i;:}
+    | IDENT:i IGUAL Expresion:e COMA                    {:TablaSimbolos.put(i, null); Generator.salida(sym.IDENT, e, null, i+TablaSimbolos.get(i) ); RESULT = i;:} Var
+    | IDENT:i COMA                                      {:TablaSimbolos.put(i, null);:} Var:v
+    | IDENT:i                                           {:TablaSimbolos.put(i, null); RESULT = TablaSimbolos.get(i);:}
+    ;
+
+
+Operador ::= Expresion:e1 MAS Expresion:e2              {:RESULT = Generator.nuevaTemp(); Generator.salida(sym.MAS, e1, e2, RESULT);:}
+    | Expresion:e1 MENOS Expresion:e2                   {:RESULT = Generator.nuevaTemp(); Generator.salida(sym.MENOS, e1, e2, RESULT);:}
+    | Expresion:e1 POR Expresion:e2                     {:RESULT = Generator.nuevaTemp(); Generator.salida(sym.POR, e1, e2, RESULT);:}
+    | Expresion:e1 DIV Expresion:e2                     {:RESULT = Generator.nuevaTemp(); Generator.salida(sym.DIV, e1, e2, RESULT);:}
+    | Expresion:e1 MOD Expresion:e2                     {:String temp1 = Generator.nuevaTemp(); Generator.salida(sym.DIV, e1, e2, temp1); String temp2 = Generator.nuevaTemp(); Generator.salida(sym.POR, temp1, e2, temp2); temp1 = Generator.nuevaTemp(); Generator.salida(sym.MENOS, e1, temp2, temp1); RESULT = temp1;:}
+    ;
+
+
+Condicion ::= Expresion:e1 EQ Expresion:e2              {:RESULT = new DosEtiquetas(); Generator.salida(Generator.IFGOTO, e1+" == ", e2, RESULT.v()); Generator.salida(Generator.GOTO, null, null, RESULT.f()); :}
+    | Expresion:e1 NE Expresion:e2                      {:RESULT = new DosEtiquetas(); Generator.salida(Generator.IFGOTO, e1+" == ", e2, RESULT.f()); Generator.salida(Generator.GOTO, null, null, RESULT.v()); :}
+    | Expresion:e1 LT Expresion:e2                      {:RESULT = new DosEtiquetas(); Generator.salida(Generator.IFGOTO, e1+" < ", e2, RESULT.v()); Generator.salida(Generator.GOTO, null, null, RESULT.f()); :}
+    | Expresion:e1 LE Expresion:e2                      {:RESULT = new DosEtiquetas(); Generator.salida(Generator.IFGOTO, e2+" < ", e1, RESULT.f()); Generator.salida(Generator.GOTO, null, null, RESULT.v()); :}
+    | Expresion:e1 GT Expresion:e2                      {:RESULT = new DosEtiquetas(); Generator.salida(Generator.IFGOTO, e2+" < ", e1, RESULT.v()); Generator.salida(Generator.GOTO, null, null, RESULT.f()); :}
+    | Expresion:e1 GE Expresion:e2                      {:RESULT = new DosEtiquetas(); Generator.salida(Generator.IFGOTO, e1+" < ", e2, RESULT.f()); Generator.salida(Generator.GOTO, null, null, RESULT.v()); :}
+    | NOT Condicion:c                                   {:c.swap(); RESULT = c;:}
+    | Condicion:c1 AND                                  {:Generator.salida(Generator.LABEL, null, null, c1.v()); :} Condicion:c2 {:Generator.salida(Generator.LABEL, null, null, c1.f()); Generator.salida(Generator.GOTO, null, null, c2.f()); RESULT = c2;:}
+    | Condicion:c1 OR                                   {:Generator.salida(Generator.LABEL, null, null, c1.f()); :} Condicion:c2 {:Generator.salida(Generator.LABEL, null, null, c1.v()); Generator.salida(Generator.GOTO, null, null, c2.v()); RESULT = c2;:}
+    | AP Condicion:c CP                                 {:RESULT = c;:}
+    ;
+
+
+prIF ::= IF {:RESULT = Generator.nuevaLabel();:};
+
+prELSE ::= ELSE Sentencia {::} | {::};
+
+prDO ::= DO {:RESULT = new DosEtiquetas();:};
+
+prFOR ::= FOR {:RESULT = new DosEtiquetas();:};
+
+prStep ::= STEP Expresion:n {: int r = (masMenos.equals("mas"))?sym.MASMAS:sym.MENOSMENOS; Generator.salida(r, n ,   null, aux); Generator.salida(Generator.GOTO, null, null, primEtiq); Generator.salida(Generator.LABEL, null, null, dosEtiq.f());:}
+           |                {: int r = (masMenos.equals("mas"))?sym.MASMAS:sym.MENOSMENOS; Generator.salida(r, null, null, aux); Generator.salida(Generator.GOTO, null, null, primEtiq); Generator.salida(Generator.LABEL, null, null, dosEtiq.f());:};
+
+prFORTO ::= Expresion:e1 TO Expresion:e2 
+                    
+                              {: 
+                                 primEtiq=Generator.nuevaLabel(); 
+                                 Generator.salida(Generator.LABEL, null, null, primEtiq); 
+                                 dosEtiq = new DosEtiquetas() ;
+                                 salidaEtiq=Generator.nuevaLabel();
+                                 Generator.salida(Generator.IFGOTO, e2+" < ", e1, salidaEtiq); 
+                                 Generator.salida(Generator.GOTO, null, null, dosEtiq.f()); 
+                                 Generator.salida(Generator.LABEL, null, null, dosEtiq.v()); 
+                                 aux=e1;
+                                 masMenos="mas";:} 
+                                 
+                                 prStep DO ALL Sentencia 
+                                 
+                              {: Generator.salida(Generator.GOTO, null, null, dosEtiq.v()); 
+                                 Generator.salida(Generator.LABEL, null, null, salidaEtiq);:}
+
+                                 CLL Sentencia;
+
+                            
+prDOWNTO ::= Expresion:e1 DOWNTO Expresion:e2 
+                                
+                              {: 
+                                 primEtiq=Generator.nuevaLabel(); 
+                                 Generator.salida(Generator.LABEL, null, null, primEtiq); 
+                                 dosEtiq = new DosEtiquetas() ;
+                                 salidaEtiq=Generator.nuevaLabel(); 
+                                 Generator.salida(Generator.IFGOTO, e1+" < ", e2, salidaEtiq); 
+                                 Generator.salida(Generator.GOTO, null, null, dosEtiq.f()); 
+                                 Generator.salida(Generator.LABEL, null, null, dosEtiq.v()); 
+                                 aux=e1;
+                                 masMenos="menos";:} 
+                                 
+                                 prStep DO ALL Sentencia 
+                                 
+                              {: Generator.salida(Generator.GOTO, null, null, dosEtiq.v()); 
+                                 Generator.salida(Generator.LABEL, null, null, salidaEtiq);:}
+
+                                 CLL Sentencia;
+
+
+
+prWHILE ::= WHILE {:RESULT = Generator.nuevaLabel();:};

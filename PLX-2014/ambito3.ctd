@@ -1,0 +1,13 @@
+	y = 1;
+	x = y;
+	if (x == y) goto L1;
+	goto L2;
+L1:
+	x = 3;
+	_t0 = x + y;
+	print _t0;
+	goto L0;
+L2:
+L0:
+	_t1 = x + y;
+	print _t1;
