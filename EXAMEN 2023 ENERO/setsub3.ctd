@@ -1,0 +1,31 @@
+	_t0[0] = 1;
+	_t0[1] = 2;
+	_t0[2] = 3;
+	_t1 = _t0[0];
+	c[0] = _t1;
+	_t1 = _t0[1];
+	c[1] = _t1;
+	_t1 = _t0[2];
+	c[2] = _t1;
+# Quitamos un elemento
+	_t2 = c[1];
+	c[0] = _t2;
+	_t2 = c[2];
+	c[1] = _t2;
+	c[2] = null;
+# Quitamos un elemento
+	c[1] = null;
+# Quitamos un elemento
+	c_length = 1;
+	_t5 = 0;
+L0:
+	if (_t5 < c_length) goto L1;
+	goto L2;
+L1:
+	_t6 = c[_t5];
+	write _t6;
+	writec 32;
+	_t5 = _t5 + 1;
+	goto L0;
+L2:
+	writec 10;

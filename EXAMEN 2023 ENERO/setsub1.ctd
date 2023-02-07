@@ -1,0 +1,79 @@
+	_t0[0] = 1;
+	_t0[1] = 2;
+	_t0[2] = 3;
+	_t1 = _t0[0];
+	c[0] = _t1;
+	_t1 = _t0[1];
+	c[1] = _t1;
+	_t1 = _t0[2];
+	c[2] = _t1;
+	_t2[0] = 2;
+	_t2[1] = 3;
+	_t2[2] = 4;
+	_t2[3] = 5;
+	_t2[4] = 6;
+	_t3 = _t2[0];
+	d[0] = _t3;
+	_t3 = _t2[1];
+	d[1] = _t3;
+	_t3 = _t2[2];
+	d[2] = _t3;
+	_t3 = _t2[3];
+	d[3] = _t3;
+	_t3 = _t2[4];
+	d[4] = _t3;
+#Aplicamos RESTA
+	_t4[0] = 4;
+	_t4[1] = 5;
+	_t4[2] = 6;
+	_t5 = _t4[0];
+	e[0] = _t5;
+	_t5 = _t4[1];
+	e[1] = _t5;
+	_t5 = _t4[2];
+	e[2] = _t5;
+	_t6 = _t4[0];
+	e[0] = _t6;
+	_t6 = _t4[1];
+	e[1] = _t6;
+	_t6 = _t4[2];
+	e[2] = _t6;
+	c_length = 3;
+	_t7 = 0;
+L0:
+	if (_t7 < c_length) goto L1;
+	goto L2;
+L1:
+	_t8 = c[_t7];
+	write _t8;
+	writec 32;
+	_t7 = _t7 + 1;
+	goto L0;
+L2:
+	writec 10;
+	d_length = 5;
+	_t9 = 0;
+L3:
+	if (_t9 < d_length) goto L4;
+	goto L5;
+L4:
+	_t10 = d[_t9];
+	write _t10;
+	writec 32;
+	_t9 = _t9 + 1;
+	goto L3;
+L5:
+	writec 10;
+	e_length = 3;
+	_t11 = 0;
+L6:
+	if (_t11 < e_length) goto L7;
+	goto L8;
+L7:
+	_t12 = e[_t11];
+	write _t12;
+	writec 32;
+	_t11 = _t11 + 1;
+	goto L6;
+L8:
+	writec 10;

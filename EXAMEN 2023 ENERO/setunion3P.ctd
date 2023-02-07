@@ -1,0 +1,119 @@
+   $t0[0] = 1;
+   $t0[1] = 2;
+   $t0[2] = 3;
+# asignar array c <- $t0
+   $c_length = 0;
+   $t1 = 0;
+L0:
+   if ($t1 < 3) goto L1;
+   goto L2;
+L1:
+   $t2 = $t0[$t1];
+   $t3 = 0;
+L3:
+   if ($t3 == $c_length) goto L4;
+   $t4 = c[$t3];
+   if ($t4 == $t2) goto L5;
+   $t3 = $t3 + 1;
+   goto L3;
+L4:
+   c[$c_length] = $t2;
+   $c_length = $c_length + 1;
+L5:
+   $t1 = $t1 + 1;
+   goto L0;
+L2:
+# asignar array $t5 <- c
+   $$t5_length = 0;
+   $t6 = 0;
+L6:
+   if ($t6 < $c_length) goto L7;
+   goto L8;
+L7:
+   $t7 = c[$t6];
+   $t8 = 0;
+L9:
+   if ($t8 == $$t5_length) goto L10;
+   $t9 = $t5[$t8];
+   if ($t9 == $t7) goto L11;
+   $t8 = $t8 + 1;
+   goto L9;
+L10:
+   $t5[$$t5_length] = $t7;
+   $$t5_length = $$t5_length + 1;
+L11:
+   $t6 = $t6 + 1;
+   goto L6;
+L8:
+   $t5[$c_length] = 4;
+   $$t5_length = $c_length + 1;
+   $t10[0] = 5;
+# asignar array $t11 <- $t5
+   $$t11_length = 0;
+   $t12 = 0;
+L12:
+   if ($t12 < $$t5_length) goto L13;
+   goto L14;
+L13:
+   $t13 = $t5[$t12];
+   $t14 = 0;
+L15:
+   if ($t14 == $$t11_length) goto L16;
+   $t15 = $t11[$t14];
+   if ($t15 == $t13) goto L17;
+   $t14 = $t14 + 1;
+   goto L15;
+L16:
+   $t11[$$t11_length] = $t13;
+   $$t11_length = $$t11_length + 1;
+L17:
+   $t12 = $t12 + 1;
+   goto L12;
+L14:
+# asignar array $t11 <- $t10
+   $t16 = 0;
+L18:
+   if ($t16 < 1) goto L19;
+   goto L20;
+L19:
+   $t17 = $t10[$t16];
+   $t18 = 0;
+L21:
+   if ($t18 == $$t11_length) goto L22;
+   $t19 = $t11[$t18];
+   if ($t19 == $t17) goto L23;
+   $t18 = $t18 + 1;
+   goto L21;
+L22:
+   $t11[$$t11_length] = $t17;
+   $$t11_length = $$t11_length + 1;
+L23:
+   $t16 = $t16 + 1;
+   goto L18;
+L20:
+   $d_length = $$t11_length;
+   d = $t11;
+   $t20 = 0;
+L24:
+   if ($t20 < $c_length) goto L25;
+   goto L26;
+L25:
+   $t21 = c[$t20];
+   write $t21;
+   writec 32;
+   $t20 = $t20 + 1;
+   goto L24;
+L26:
+   writec 10;
+   $t22 = 0;
+L27:
+   if ($t22 < $d_length) goto L28;
+   goto L29;
+L28:
+   $t23 = d[$t22];
+   write $t23;
+   writec 32;
+   $t22 = $t22 + 1;
+   goto L27;
+L29:
+   writec 10;

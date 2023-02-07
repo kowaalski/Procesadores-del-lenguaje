@@ -1,0 +1,540 @@
+import java_cup.runtime.*;
+
+parser code
+{:
+
+    public DosEtiquetas dosEtiq;
+    public String aux;
+    public String tipoVariable;
+    public int contador;
+    public String auxTipoSet;
+    public String auxSet;
+    public String auxNombreSet;
+    public String setAux;
+    public int contador2=0;
+:};
+
+
+nonterminal String Lista_de_Sent, Sentencia, Expresion, prIF, prELSE,LeerParaInter_set, prWHILE, Var, Operador, Incr, Ids, RecogerBasico, LeerElementosSet,AsignarElem_a_Set, prForEspeciales, prAll, RemoveElem_set, LeerParaBorrarElem_set;
+nonterminal DosEtiquetas Condicion, prFOR, prDO;
+nonterminal declarar_set;
+
+terminal String WHILE, DO, MAS, MENOS, POR, DIV, AP, CP, ALL, CLL, IDENT, IF, ELSE, FOR, PRINT, PYC, MINUS, IGUAL, NOT, AND, OR, GT, GE, LT, LE, NE, EQ, INT, COMA, MASMAS, MENOSMENOS, MOD, LETRA, FLOAT, ENTERO, REAL, CHAR, SET, DOSPUNTOS, OPADD, OPREMOVE,OPADDUNION, OPRESTA,OPINTER;
+
+precedence left SET,WHILE, DO, ENTERO, IDENT, IF, FOR, PRINT, INT, REAL, FLOAT, ALL, IGUAL, CHAR, LETRA;
+precedence left COMA;
+precedence left ELSE;
+precedence left OR;
+precedence left AND;
+precedence left NOT;
+precedence left LT, GT, LE, GE, EQ, NE;
+precedence left MAS, MENOS;
+precedence left POR, DIV, MOD;
+precedence left MASMAS, MENOSMENOS;
+precedence left AP, CP;
+precedence left MINUS,CLL;
+
+start with Lista_de_Sent;
+
+Lista_de_Sent ::= Sentencia
+    | Lista_de_Sent Sentencia
+    |
+    ;
+
+Sentencia ::= Expresion:e PYC                           {:RESULT = e;:}
+    | prIF:iff AP Condicion:c                           {:Generator.salida(Generator.LABEL, null, null, c.v());:} CP Sentencia {:Generator.salida(Generator.GOTO, null, null, iff); Generator.salida(Generator.LABEL, null, null, c.f());:} prELSE {:Generator.salida(Generator.LABEL, null, null, iff);:}
+    | prWHILE:whilee                                    {:Generator.salida(Generator.LABEL, null, null, whilee);:} AP Condicion:c {:Generator.salida(Generator.LABEL, null, null, c.v());:} CP Sentencia {:Generator.salida(Generator.GOTO, null, null, whilee); Generator.salida(Generator.LABEL, null, null, c.f());:}
+    | prDO:doo                                          {:Generator.salida(Generator.LABEL, null, null, doo.v()); :} Sentencia WHILE AP Condicion:c CP {:Generator.salida(Generator.LABEL, null, null, c.v()); Generator.salida(Generator.GOTO, null, null, doo.v()); Generator.salida(Generator.LABEL, null, null, c.f());:} PYC
+    | prFOR:forr AP Expresion                           {:Generator.salida(Generator.LABEL, null, null, forr.v());:} PYC Condicion:c {:Generator.salida(Generator.LABEL, null, null, forr.f());:} PYC Expresion {:Generator.salida(Generator.GOTO, null, null, forr.v()); Generator.salida(Generator.LABEL, null, null, c.v());:} CP Sentencia {:Generator.salida(Generator.GOTO, null, null, forr.f()); Generator.salida(Generator.LABEL, null, null, c.f());:}
+    | PRINT AP Expresion:e CP PYC                       {: //Si es un print normal sacamos por pantalla, print var, pero si es un print de un character hay que sacar printc, mientras que si es un print de un set entonces hay que hacer la aranoya de SET que hay en generator
+                                                            if(TablaSimbolos.esSet(e)){
+                                                                Generator.salida(sym.SET, null, null, e);
+
+                                                            }else if(TablaSimbolos.getTipo(e).equals("CHAR")){
+                                                                Generator.salida(Generator.PRINTC,e,null,null);
+
+                                                            }else{
+                                                                Generator.salida(sym.PRINT, null, null, e);
+                                                            }
+                                                        :}
+    | prForEspeciales
+    | ALL                                               {:TablaSimbolos.anadirNivel();:} Lista_de_Sent CLL {:TablaSimbolos.quitarNivel();:}
+    ;
+
+
+Expresion ::= Operador:o                                         {:RESULT = o;:}
+    | Incr:var                                          {:RESULT = var;:}
+    | AP Expresion:e CP                                 {:RESULT = e;:}
+    | AP Ids:i CP Expresion:e                           {: // (int)... MAS COSAS
+                                                            String t = Generator.nuevaTemp();
+                                                            String resCasteo="";
+
+                                                            TablaSimbolos.put(t,i);                         //Guardamos var con su tipo
+                                                            resCasteo=TablaSimbolos.castElemOVariable(e,i); //Casteamos el num a pelo o variable (dependiendo de lo que nos pasen)
+                                                            TablaSimbolos.putElemVar(t, resCasteo);         //Guardamos var con su valor bien casteado
+                                                            Generator.salida(sym.IDENT, e, i, t ); 
+                                                            RESULT=t;
+
+                                                        :}
+    | IDENT:i                                           {:  //Compruebo si existe en nuestro dict de de sets y nuestro dic de var
+                                                            if(TablaSimbolos.esSet(i)){ //Para comprobar si esta declarada (guardada en nuestro dict)
+                                                                RESULT = i;
+                                                            }else{                            //Var normal, la cual si no existe el get dara error
+                                                                RESULT = i + TablaSimbolos.get(i);
+                                                            }
+                                                        :}
+
+    | IDENT:i IGUAL{:auxNombreSet=i;:} Expresion:e      {:  
+                                                            String var=TablaSimbolos.quitarAmbito(i); //Le quito el ambito a todo por si acaso, ya que en mi dict lo guardo todo sin ambito, pero a la hora de imprimir hay que hacerlo con el ambito!
+                                                            String var_a_Asignar=TablaSimbolos.quitarAmbito(e);
+                                                            
+                                                            if(TablaSimbolos.esSet(i)){
+                                                                RESULT=i;
+                                                                auxSet=i;
+                                                            }else{
+                                                                RESULT = i + TablaSimbolos.get(i);
+                                                            }
+                                                            // PLXC.out.println("SET "+i+"  "+TablaSimbolos.esSet(i)+ " SET2: "+e+"  "+TablaSimbolos.esSet(e));
+                                                            if(TablaSimbolos.comprobacionASIG_SET(i,e)){ // a=b siendo a y b arrays
+                                                                    
+                                                                    TablaSimbolos.VolcarArrayAux_a_Original_SET(i,e,true);
+                                                           
+                                                            }else{ // int x ; x=5.7 ERROR /// float x ; x=5 BIEN --> x= (float) 5
+                                                                String[] tipos = TablaSimbolos.calcGetTipos(var,var_a_Asignar); //Devuelve el tipo de i , e //FLOAT,INT
+                                                                String   tipo  = TablaSimbolos.comprobarCompatibilidadTipos(tipos[0],var_a_Asignar);// Si son incompatibles salta error, sino
+                                                                String resCasteo=TablaSimbolos.getElemVar(var_a_Asignar); //Si "e" es un numero a pelo, devuelve ese numero, si es una variable su valor asociado
+                                                                // PLXC.out.println("tipos--> "+i+": "+tipos[0]+"   "+e+": "+tipos[1]);
+                                                                // PLXC.out.println("RESULTADO OPERACION TIPO: "+tipo);
+                                                                // PLXC.out.println("DENTRO 3");
+
+                                                                if (tipo.equals("CASTING")){
+                                                                    resCasteo=TablaSimbolos.castElemOVariable(var_a_Asignar,tipos[0]); //Casteamos el num a pelo o variable (dependiendo de lo que nos pasen)
+                                                                    TablaSimbolos.putElemVar(i,resCasteo);
+                                                                    Generator.salida(sym.IDENT, e, tipos[0], RESULT );
+                                                                
+                                                                }else{
+                                                                    Generator.salida(sym.IDENT, e, null, RESULT);
+                                                                    TablaSimbolos.putElemVar(i,resCasteo);
+
+                                                                }
+                                                            }
+
+
+                                                        :}
+
+    | Ids Var:v                                         {:RESULT = v;:} // Donde declaramos las cosas y las guardamos en el dict
+    | IDENT:i OPADDUNION prAll {:auxTipoSet=TablaSimbolos.getTipoSet(i);auxSet=i; Generator.asig_Array_ALL=true;:} prAll LeerElementosSet:t prAll{:     
+                                                            
+                                                                                                                                                          Generator.asig_Array_ALL=false;
+                                                                                                                                                          TablaSimbolos.VolcarArrayAux_a_Original_SET(i,t,false);
+                                                                                                                                                          contador=0;
+                                                                                                                                                          RESULT=i;
+                                 
+                                
+                                                                                                                                                       :}
+    | IDENT:i OPRESTA prAll {:auxSet=i;:} prAll LeerParaBorrarElem_set prAll
+    | IDENT:i OPINTER prAll {:auxSet=i;Generator.asig_Array_ALL=true;:} prAll LeerParaInter_set:t prAll{:TablaSimbolos.VolcarArrayAux_a_Original_SET(i,t,true);:}
+   
+    | SET Ids declarar_set
+ 
+        //c = {1,2,3}
+    | AsignarElem_a_Set:c                               {:RESULT=c;:}
+
+    // {1,2,3}
+    | ALL LeerElementosSet:s CLL                        {:RESULT=s;:}
+    | RemoveElem_set:c                                  {:RESULT=c;:}
+    | RecogerBasico:e                                   {:RESULT = e;:}
+    | MENOS Expresion:e                                 {:RESULT = Generator.nuevaTemp(); Generator.salida(sym.MINUS, e, null, RESULT);:}
+    %prec MINUS;
+
+
+declarar_set ::= IDENT:i COMA   {:TablaSimbolos.putSet(i,tipoVariable);  :} declarar_set
+                |IDENT:i        {:TablaSimbolos.putSet(i,tipoVariable);  :};
+
+
+
+LeerElementosSet ::= LeerElementosSet:t COMA Expresion:e {:TablaSimbolos.putElementoSet(t,e); Generator.salida(Generator.ARRAY,String.valueOf(contador),e ,t); contador++ ;RESULT=t; :}
+                      |Expresion:e                       {:
+                                                         
+                                                           if(TablaSimbolos.esSet(e)){
+                                                                RESULT=e;
+                                                            }else{
+                                                                String t_aux=Generator.nuevaTemp(); //Array auxiliar para guardarlo todo
+                                                                TablaSimbolos.putSet(t_aux,auxTipoSet);
+                                                                TablaSimbolos.putElementoSet(t_aux,e);
+                                                                //Meto el elemento en el set original
+                                                                // TablaSimbolos.putElementoSet(auxSet,e);
+                                                                Generator.salida(Generator.ARRAY,String.valueOf(contador),e ,t_aux); // x[i] = algo
+                                                                contador++;
+                                                                RESULT=t_aux;
+
+                                                            }
+
+                                                            :};
+
+
+//a={1,4,6} //Aqui no hay castings, si es a tipo INT entonces todos int sino error. Por ello activo Generator.asig_Array_ALL para que el generator sepa que no hay que parsear
+AsignarElem_a_Set ::=  IDENT:i IGUAL ALL{:auxTipoSet=TablaSimbolos.getTipoSet(i);auxSet=i; Generator.asig_Array_ALL=true;:} LeerElementosSet:t CLL {:Generator.asig_Array_ALL=false;TablaSimbolos.VolcarArrayAux_a_Original_SET(i,t,false);contador=0; RESULT=i; :}
+
+                      //a <== {1,4,6}
+                      |IDENT:i OPADD prAll{:auxTipoSet=TablaSimbolos.getTipoSet(i);auxSet=i; Generator.asig_Array_ALL=true;:} LeerElementosSet:t prAll {:  
+                                                                                                                                                          Generator.asig_Array_ALL=false;
+                                                                                                                                                          TablaSimbolos.VolcarArrayAux_a_Original_SET(i,t,false);
+                                                                                                                                                          contador=0;
+                                                                                                                                                          RESULT=i;
+                                 
+                                
+                                                                                                                                                       :};
+
+
+
+LeerParaInter_set ::= LeerParaInter_set:t COMA Expresion:e {:TablaSimbolos.operatoriaInterElementoSet(auxSet, e,t,contador2);contador2++; RESULT=t;   :}
+                      |Expresion:e     {:String t=Generator.nuevaTemp();
+                                        TablaSimbolos.putSet(t,"INT");
+                                        TablaSimbolos.operatoriaInterElementoSet(auxSet, e,t,contador2); 
+                                        contador2++;
+                                        RESULT=t;   :};
+
+
+
+LeerParaBorrarElem_set ::= Expresion:e COMA {:TablaSimbolos.operatoriaBorrarElementoSet(auxSet, e);   :} LeerParaBorrarElem_set
+                           |Expresion:e     {:TablaSimbolos.operatoriaBorrarElementoSet(auxSet, e);   :};
+
+
+RemoveElem_set ::= IDENT:i OPREMOVE prAll{:auxSet=i;:} LeerParaBorrarElem_set prAll;                                                                                                                                                   
+
+
+prAll ::= ALL
+         |CLL
+         |
+         ;
+
+
+
+//Tipo de numero ó letra, por aqui recogo el numero o letra en si
+RecogerBasico::= ENTERO:e  {:RESULT=e;:}
+                |REAL:e    {:RESULT=e;:}
+                |LETRA:e   {:RESULT=e;:};
+
+//Identificador que pone delante, Ej: int x
+Ids::= INT:e    {:RESULT="INT";     tipoVariable="INT";:}
+      |FLOAT:e  {:RESULT="FLOAT";   tipoVariable="FLOAT";:}
+      |CHAR:e   {:RESULT="CHAR";    tipoVariable="CHAR";:};
+
+
+//Donde declaramos las cosas y ya guardamos                                                        //TablaSimbolos.comprobarCompatibilidadTipos(tipoVariable, e);
+Var ::= IDENT:i IGUAL Expresion:e                         {:TablaSimbolos.put(i, tipoVariable); TablaSimbolos.putElemVar(i,e); Generator.salida(sym.IDENT, e, null, i+TablaSimbolos.get(i) ); RESULT = i+TablaSimbolos.get(i);:}
+      | IDENT:i IGUAL Expresion:e COMA                    {:TablaSimbolos.put(i, tipoVariable); TablaSimbolos.putElemVar(i,e); Generator.salida(sym.IDENT, e, null, i+TablaSimbolos.get(i) ); RESULT = i+TablaSimbolos.get(i);:} Var
+      | IDENT:i COMA                                      {:TablaSimbolos.put(i, tipoVariable);:} Var:v
+      | IDENT:i                                           {:TablaSimbolos.put(i, tipoVariable); RESULT = i+TablaSimbolos.get(i);:};
+
+
+Incr::= MASMAS Expresion:i          {:  
+                                        Generator.salida(sym.MASMAS, null, null, i); 
+                                        TablaSimbolos.putElemVarMASMAS(i);  //sumamos uno al valor asociado de la variable  
+                                        RESULT = i; 
+                                        
+                                    :}
+        |Expresion:i MASMAS         {:
+                                        String t=Generator.nuevaTemp();
+                                        String tipo=TablaSimbolos.float_int_char_variable(i);
+                                        String resul;
+                                        if(tipo.equals("VARIABLE")){
+                                            resul = TablaSimbolos.getTipo(i);
+                                        }else{
+                                            resul=tipo;
+
+                                        }
+
+                                        TablaSimbolos.put(t,resul);
+                                        TablaSimbolos.putElemVar(t,i);
+                                        TablaSimbolos.putElemVarMASMAS(i);
+
+                                        Generator.salida(sym.IDENT,i,null,t);
+                                        Generator.salida(sym.MASMAS, null, null, i);
+                                        RESULT = t; :}
+
+        |MENOSMENOS Expresion:i     {: Generator.salida(sym.MENOSMENOS, null, null, i); RESULT = i; 
+                                       TablaSimbolos.putElemVarMENOSMENOS(i); 
+                                        RESULT=i; :}
+
+        |Expresion:i MENOSMENOS     {: String t=Generator.nuevaTemp();
+                                       String tipo=TablaSimbolos.float_int_char_variable(i);
+                                       String resul;
+                                       if(tipo.equals("VARIABLE")){
+                                            resul = TablaSimbolos.getTipo(i);
+                                       }else{
+                                            resul=tipo;
+
+                                       }
+
+                                       TablaSimbolos.put(t,resul);
+                                       TablaSimbolos.putElemVar(t,i);
+                                       TablaSimbolos.putElemVarMASMAS(i);
+                                       Generator.salida(sym.IDENT,i,null,t);
+                                       Generator.salida(sym.MENOSMENOS, null, null, i);
+                                       RESULT = t; :};
+
+
+
+
+
+
+Operador ::= Expresion:e1 MAS Expresion:e2              {:RESULT = Generator.nuevaTemp(); //Todo esto es por si me pasaran por ejemplo 2.5 un numero, que esta en String, pues lo que hago es que mi funcion float_int_char_variable me devuelve FLOAT, si le paso una variable pues devuelve "VARIABLE" en este caso buscare en mi diccionario de que tipo es esa variable, es decir dependiendo de lo que reciba por e1 e2, tendre que buscar o no en mi diccionario
+                                                         
+                                                        //  PLXC.out.println("E1: "+e1+" E2: "+e2);
+                                                         if(TablaSimbolos.esSet(e1) || TablaSimbolos.esSet(e2)){
+                                                            // PLXC.out.println("AUX NOMBRE SET: "+auxNombreSet);
+                                                            if(!TablaSimbolos.float_int_char_variable(e1).equals("VARIABLE")){
+                                                                // PLXC.out.println("DENTRO");
+                                                                // TablaSimbolos.putElementoSet(e2,e1);
+                                                                String t= Generator.nuevaTemp();
+                                                                TablaSimbolos.putSet(t,null);
+                                                                TablaSimbolos.VolcarArrayAux_a_Original_SET(t,e2,true);
+                                                                Generator.salida(Generator.ARRAY,String.valueOf(TablaSimbolos.getUltPosSet(e2)),e1,e2);
+                                                                RESULT = e2;
+                                                            }else if(!TablaSimbolos.float_int_char_variable(e2).equals("VARIABLE")){
+                                                                // PLXC.out.println("DENTRO2");
+                                                                String t= Generator.nuevaTemp();
+                                                                TablaSimbolos.putSet(t,null);
+                                                                TablaSimbolos.VolcarArrayAux_a_Original_SET(t,e1,true);
+                                                                // TablaSimbolos.putElementoSet(e1,e2);
+                                                                Generator.salida(Generator.ARRAY,String.valueOf(TablaSimbolos.getUltPosSet(e1)),e2,t);
+                                                                RESULT = e1;
+                                                            }else{
+                                                                String setUnion="";
+                                                                setUnion=TablaSimbolos.aplicarOperacion(e1,e2, auxNombreSet,"UNION");
+                                                                RESULT = setUnion;
+                                                            }
+
+                                                           
+                                                         }else{
+                                                                
+                                                                String[] tipos = TablaSimbolos.calcGetTipos(e1,e2); //Dentro de esta func se le quita el ambito
+                                                                //   PLXC.out.println("variable: "+e1+"  "+e2);
+                                                                String resul = TablaSimbolos.tipoResultanteDeOperacion(tipos[0],tipos[1]);
+
+                                                                //Lo del split es por lo de los ambito, si nos pasan algo asi: a_2 quitarle el _2, y buscar solo la "a" en nuestro dict ya que la guardamos asi, solo usamos a_2 para imprimir
+                                                                String ee1=TablaSimbolos.getElemVar(TablaSimbolos.quitarAmbito(e1)); //Si son num a pelos, te devuelve ese num a pelo, si es variable su elemento asociado
+                                                                String ee2=TablaSimbolos.getElemVar(TablaSimbolos.quitarAmbito(e2));
+                                                                //   PLXC.out.println("AMBITO VAR1 QUITADO: "+TablaSimbolos.quitarAmbito(e1)+ "  ///  AMBITO VAR2 QUITADO: "+TablaSimbolos.quitarAmbito(e2));
+                                                                String resulOperacion="";
+
+                                                                //   PLXC.out.println("VALOR ELEMENTO "+e1+ ": " +ee1 + "   VALOR ELEMENTO  "+e2+": "+ee2 );
+
+                                                                TablaSimbolos.put(RESULT,resul); //Metemos variable con su tipo
+                                                                if(resul.equals("INT")){
+                                                                    resulOperacion=String.valueOf(Integer.parseInt(ee1)+Integer.parseInt(ee2));
+                                                                    // PLXC.out.println("DENTRO --> VALOR ELEMENTO "+e1+ ": " +ee1 + "   VALOR ELEMENTO  "+e2+": "+ee2+ " -- APLICAMOS SUMA-->" +Integer.parseInt(ee1)+" + "+Integer.parseInt(ee2)+" = "+resulOperacion);
+                                                                    TablaSimbolos.putElemVar(RESULT,resulOperacion); //Metemos variable con su valor asociado correspondiente
+                                                                }else{
+                                                                    resulOperacion=String.valueOf(Double.parseDouble(ee1)+Double.parseDouble(ee2));
+                                                                    TablaSimbolos.putElemVar(RESULT,String.valueOf(Double.parseDouble(ee1)+Double.parseDouble(ee2)));
+                                                                }
+
+                                                                Generator.salida(sym.MAS, e1, e2, RESULT);
+                                                                
+                                                                //PLXC.out.println("RESULTADO OPERACION: "+resul);
+                                                        
+                                                        
+                                                        }
+                                                        
+                                                        
+                                                        :}
+
+
+            |Expresion:e1 MENOS Expresion:e2            {:
+            
+            
+                                                        if(TablaSimbolos.esSet(e1) || TablaSimbolos.esSet(e2)){
+                                                               if(!TablaSimbolos.float_int_char_variable(e1).equals("VARIABLE")){
+                                                                // PLXC.out.println("DENTRO");
+                                                                // TablaSimbolos.putElementoSet(e2,e1);
+                                                                String t= Generator.nuevaTemp();
+                                                                TablaSimbolos.putSet(t,null);
+                                                                TablaSimbolos.VolcarArrayAux_a_Original_SET(t,e2,true);
+                                                                Generator.salida(Generator.ARRAY,String.valueOf(TablaSimbolos.getUltPosSet(e2)),e1,e2);
+                                                                RESULT = e2;
+                                                            }else if(!TablaSimbolos.float_int_char_variable(e2).equals("VARIABLE")){
+                                                                // PLXC.out.println("DENTRO2");
+                                                                String t= Generator.nuevaTemp();
+                                                                TablaSimbolos.putSet(t,null);
+                                                                TablaSimbolos.VolcarArrayAux_a_Original_SET(t,e1,true);
+                                                                // TablaSimbolos.putElementoSet(e1,e2);
+                                                                Generator.salida(Generator.ARRAY,String.valueOf(TablaSimbolos.getUltPosSet(e1)),e2,t);
+                                                                RESULT = e1;
+                                                            }else{
+                                                                String setUnion="";
+                                                                setUnion=TablaSimbolos.aplicarOperacion(e1,e2, auxNombreSet,"RESTA");
+                                                                RESULT = setUnion;
+                                                            }
+                                                            
+            
+            
+                                                         }else{
+
+                                                                RESULT = Generator.nuevaTemp();
+                                                                String[] tipos = TablaSimbolos.calcGetTipos(e1,e2);
+                                                                String resul = TablaSimbolos.tipoResultanteDeOperacion(tipos[0],tipos[1]);
+                                                                String ee1=TablaSimbolos.getElemVar(TablaSimbolos.quitarAmbito(e1)); //Si son num a pelos, te devuelve ese num a pelo, si es variable su elemento asociado
+                                                                String ee2=TablaSimbolos.getElemVar(TablaSimbolos.quitarAmbito(e2));
+                                                                String resulOperacion="";
+
+                                                                TablaSimbolos.put(RESULT,resul); //Metemos variable con su tipo
+                                                                if(resul.equals("INT")){
+                                                                    resulOperacion=String.valueOf(Integer.parseInt(ee1)-Integer.parseInt(ee2));
+                                                                    TablaSimbolos.putElemVar(RESULT,resulOperacion); //Metemos variable con su valor asociado correspondiente
+                                                                }else{
+                                                                    resulOperacion=String.valueOf(Double.parseDouble(ee1)-Double.parseDouble(ee2));
+                                                                    TablaSimbolos.putElemVar(RESULT,String.valueOf(Double.parseDouble(ee1)+Double.parseDouble(ee2)));
+                                                                }
+
+                                                                Generator.salida(sym.MENOS, e1, e2, RESULT);
+                                                         }
+                                                        :}
+
+            |Expresion:e1 POR Expresion:e2              {:
+                                                        if(TablaSimbolos.esSet(e1) || TablaSimbolos.esSet(e2)){
+                                                                if(!TablaSimbolos.float_int_char_variable(e1).equals("VARIABLE")){
+                                                                // PLXC.out.println("DENTRO");
+                                                                // TablaSimbolos.putElementoSet(e2,e1);
+                                                                String t= Generator.nuevaTemp();
+                                                                TablaSimbolos.putSet(t,null);
+                                                                TablaSimbolos.VolcarArrayAux_a_Original_SET(t,e2,true);
+                                                                Generator.salida(Generator.ARRAY,String.valueOf(TablaSimbolos.getUltPosSet(e2)),e1,e2);
+                                                                RESULT = e2;
+                                                            }else if(!TablaSimbolos.float_int_char_variable(e2).equals("VARIABLE")){
+                                                                // PLXC.out.println("DENTRO2");
+                                                                String t= Generator.nuevaTemp();
+                                                                TablaSimbolos.putSet(t,null);
+                                                                TablaSimbolos.VolcarArrayAux_a_Original_SET(t,e1,true);
+                                                                // TablaSimbolos.putElementoSet(e1,e2);
+                                                                Generator.salida(Generator.ARRAY,String.valueOf(TablaSimbolos.getUltPosSet(e1)),e2,t);
+                                                                RESULT = e1;
+                                                            }else{
+                                                                String setUnion="";
+                                                                setUnion=TablaSimbolos.aplicarOperacion(e1,e2, auxNombreSet,"INTERSECCION");
+                                                                RESULT = setUnion;
+                                                            }
+                                                            
+                                                        
+                                                        
+                                                        
+                                                        
+                                                        }else{
+                                                          RESULT = Generator.nuevaTemp();
+                                                          String[] tipos = TablaSimbolos.calcGetTipos(e1,e2);
+                                                          String resul = TablaSimbolos.tipoResultanteDeOperacion(tipos[0],tipos[1]);
+                                                          String ee1=TablaSimbolos.getElemVar(TablaSimbolos.quitarAmbito(e1)); //Si son num a pelos, te devuelve ese num a pelo, si es variable su elemento asociado
+                                                          String ee2=TablaSimbolos.getElemVar(TablaSimbolos.quitarAmbito(e2));
+                                                          String resulOperacion="";
+
+                                                          TablaSimbolos.put(RESULT,resul); //Metemos variable con su tipo
+                                                          if(resul.equals("INT")){
+                                                            resulOperacion=String.valueOf(Integer.parseInt(ee1)*Integer.parseInt(ee2));
+                                                            TablaSimbolos.putElemVar(RESULT,resulOperacion); //Metemos variable con su valor asociado correspondiente
+                                                          }else{
+                                                            resulOperacion=String.valueOf(Double.parseDouble(ee1)*Double.parseDouble(ee2));
+                                                            TablaSimbolos.putElemVar(RESULT,String.valueOf(Double.parseDouble(ee1)+Double.parseDouble(ee2)));
+                                                          }
+
+                                                          Generator.salida(sym.POR, e1, e2, RESULT);
+                                                        }
+                                                         
+                                                        :}
+
+            |Expresion:e1 DIV Expresion:e2              {:RESULT = Generator.nuevaTemp();
+                                                          String[] tipos = TablaSimbolos.calcGetTipos(e1,e2);
+                                                          String resul = TablaSimbolos.tipoResultanteDeOperacion(tipos[0],tipos[1]);
+                                                          String ee1=TablaSimbolos.getElemVar(TablaSimbolos.quitarAmbito(e1)); //Si son num a pelos, te devuelve ese num a pelo, si es variable su elemento asociado
+                                                          String ee2=TablaSimbolos.getElemVar(TablaSimbolos.quitarAmbito(e2));
+                                                          String resulOperacion="";
+
+                                                          TablaSimbolos.put(RESULT,resul); //Metemos variable con su tipo
+                                                          if(resul.equals("INT")){
+                                                            resulOperacion=String.valueOf(Integer.parseInt(ee1)/Integer.parseInt(ee2));
+                                                            TablaSimbolos.putElemVar(RESULT,resulOperacion); //Metemos variable con su valor asociado correspondiente
+                                                          }else{
+                                                            resulOperacion=String.valueOf(Double.parseDouble(ee1)/Double.parseDouble(ee2));
+                                                            TablaSimbolos.putElemVar(RESULT,String.valueOf(Double.parseDouble(ee1)+Double.parseDouble(ee2)));
+                                                          }
+
+                                                          Generator.salida(sym.DIV, e1, e2, RESULT);:}
+
+            |Expresion:e1 MOD Expresion:e2              {:String temp1 = Generator.nuevaTemp(); Generator.salida(sym.DIV, e1, e2, temp1); String temp2 = Generator.nuevaTemp(); Generator.salida(sym.POR, temp1, e2, temp2); temp1 = Generator.nuevaTemp(); Generator.salida(sym.MENOS, e1, temp2, temp1); RESULT = temp1;:};
+
+
+Condicion ::= Expresion:e1 EQ Expresion:e2              {:RESULT = new DosEtiquetas(); Generator.salida(Generator.IFGOTO, e1+" == ", e2, RESULT.v()); Generator.salida(Generator.GOTO, null, null, RESULT.f()); :}
+    | Expresion:e1 NE Expresion:e2                      {:RESULT = new DosEtiquetas(); Generator.salida(Generator.IFGOTO, e1+" == ", e2, RESULT.f()); Generator.salida(Generator.GOTO, null, null, RESULT.v()); :}
+    | Expresion:e1 LT Expresion:e2                      {:RESULT = new DosEtiquetas(); Generator.salida(Generator.IFGOTO, e1+" < ", e2,  RESULT.v()); Generator.salida(Generator.GOTO, null, null, RESULT.f()); :}
+    | Expresion:e1 LE Expresion:e2                      {:RESULT = new DosEtiquetas(); Generator.salida(Generator.IFGOTO, e2+" < ", e1,  RESULT.f()); Generator.salida(Generator.GOTO, null, null, RESULT.v()); :}
+    | Expresion:e1 GT Expresion:e2                      {:RESULT = new DosEtiquetas(); Generator.salida(Generator.IFGOTO, e2+" < ", e1,  RESULT.v()); Generator.salida(Generator.GOTO, null, null, RESULT.f()); :}
+    | Expresion:e1 GE Expresion:e2                      {:RESULT = new DosEtiquetas(); Generator.salida(Generator.IFGOTO, e1+" < ", e2,  RESULT.f()); Generator.salida(Generator.GOTO, null, null, RESULT.v()); :}
+    | NOT Condicion:c                                   {:c.swap(); RESULT = c;:}
+    | Condicion:c1 AND                                  {:Generator.salida(Generator.LABEL, null, null, c1.v()); :} Condicion:c2 {:Generator.salida(Generator.LABEL, null, null, c1.f()); Generator.salida(Generator.GOTO, null, null, c2.f()); RESULT = c2;:}
+    | Condicion:c1 OR                                   {:Generator.salida(Generator.LABEL, null, null, c1.f()); :} Condicion:c2 {:Generator.salida(Generator.LABEL, null, null, c1.v()); Generator.salida(Generator.GOTO, null, null, c2.v()); RESULT = c2;:}
+    | AP Condicion:c CP                                 {:RESULT = c;:}
+    ;
+
+
+
+
+
+
+
+
+prForEspeciales::= prFOR:dosEtiq AP Expresion:e DOSPUNTOS Expresion:e2 CP {:
+                                                                    //Por si la variable de control es de distinto tipo que el array lanzamos error
+                                                                    String tipoe1=TablaSimbolos.getTipo_desde_VarOSet(e);
+                                                                    String tipoe2=TablaSimbolos.getTipo_desde_VarOSet(e2);
+                                                                    if(!tipoe1.equals(tipoe2)){
+                                                                        PLXC.out.println("#Tipos incompatibles en for in \nerror;");
+                                                                        System.exit(-1);
+                                                                    }
+                                                                    String etiq=Generator.nuevaLabel();
+                                                                    String t=Generator.nuevaTemp();
+                                                                    Generator.salida(sym.IDENT,"-1",null,t);
+                                                                    Generator.salida(Generator.LABEL,null,null,dosEtiq.v());
+                                                                    Generator.salida(sym.IDENT,t+" + 1",null,t);
+
+                                                                    //Tenemos que recorrer un set sino da error.
+                                                                    if(TablaSimbolos.esSet(e2)){
+                                                                        Generator.salida(Generator.IFGOTO, t+" < ", TablaSimbolos.getTamSet(e2),etiq);
+                                                                    }else{
+                                                                        PLXC.out.println("#Tipo incorrecto, en el for in hay que recorrer un set \nerror;");
+                                                                        System.exit(-1);
+                                                                    }
+                                                                    Generator.salida(Generator.GOTO, null, null, dosEtiq.f());
+                                                                    Generator.salida(Generator.LABEL, null, null, etiq);
+
+
+                                                                    Generator.salida(Generator.ASIG_ARRAY,e2,t,e);
+
+
+                                                                :} ALL Sentencia CLL {: Generator.salida(Generator.GOTO, null, null, dosEtiq.v()); Generator.salida(Generator.LABEL, null, null, dosEtiq.f()); :};
+
+
+
+
+
+
+prIF ::= IF {:RESULT = Generator.nuevaLabel();:};
+
+prELSE ::= ELSE Sentencia {::} | {::};
+
+prDO ::= DO {:RESULT = new DosEtiquetas();:};
+
+prFOR ::= FOR {:RESULT = new DosEtiquetas();:};
+
+prWHILE ::= WHILE {:RESULT = Generator.nuevaLabel();:};
+
+
+
+
+
+
+
+
+
+
+
